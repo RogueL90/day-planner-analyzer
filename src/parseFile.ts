@@ -15,68 +15,88 @@ const parseFile = async (app: App, file: TFile) => {
     
     function getTime(val: string, ind: number): { time: number, newInd: number, star: boolean} {
         try{
-            let time = 0;
-            let curr = ''
-
-            // Parse hour portion. Accepts both "9:30pm" and shorthand like "9pm".
-            while(ind < val.length && !isNaN(Number(val[ind]))){
-                curr += val[ind]
+            while(ind < val.length && val[ind] === ' '){
                 ind++;
             }
-            curr = curr.replace(/\s/g, '');
-            const hourNum = Number(curr);
-            if(Number.isNaN(hourNum)) {
+
+            const tokenStart = ind;
+            let token = '';
+            while(ind < val.length && val[ind] !== ' ' && val[ind] !== '-'){
+                token += val[ind];
+                ind++;
+            }
+
+            token = token.trim().toLowerCase();
+            if(token === ''){
                 return {
                     time: -1,
                     newInd: -1,
                     star: false
                 }
             }
-            time += 60*hourNum
 
-            // Optional ":mm"
-            let minutePart = "0";
-            if(val[ind] === ':'){
-                ind++;
-                curr = ''
-                while(ind < val.length && !isNaN(Number(val[ind]))){
-                    curr += val[ind]
-                    ind++;
+            let star = false;
+            if(token.endsWith('*')){
+                star = true;
+                token = token.slice(0, -1);
+            }
+
+            let hour = -1;
+            let minute = 0;
+
+            // 12h/24h with optional minutes: 2pm, 2:30pm, 14, 14:30
+            const commonMatch = token.match(/^(\d{1,2})(?::(\d{1,2}))?(am|pm)?$/);
+            if(commonMatch){
+                hour = Number(commonMatch[1]);
+                minute = commonMatch[2] ? Number(commonMatch[2]) : 0;
+                const meridiem = commonMatch[3];
+
+                if(!Number.isInteger(hour) || !Number.isInteger(minute) || minute < 0 || minute >= 60){
+                    return { time: -1, newInd: -1, star: false };
                 }
-                curr = curr.replace(/\s/g, '');
-                if(curr !== ''){
-                    minutePart = curr;
-                }
-            }
 
-            while(ind < val.length && val[ind] === ' '){
-                ind++;
-            }
-
-            curr = ''
-            while(ind < val.length && val[ind]!==' ' && val[ind]!=='-'){
-                curr += val[ind]
-                ind++;
-            }
-            curr = (minutePart + curr).replace(/\s/g, '');
-            let star = false
-            if(curr.endsWith('*')){
-                star = true
-                curr = curr.slice(0, -1)
-            }
-            if(curr[curr.length-1]==='m'){
-                if(curr[curr.length-2]==='p'){
-                    if(time!==720){
-                        time+=720
+                if(meridiem){
+                    if(hour < 1 || hour > 12){
+                        return { time: -1, newInd: -1, star: false };
+                    }
+                    if(meridiem === 'am'){
+                        if(hour === 12) hour = 0;
+                    } else {
+                        if(hour !== 12) hour += 12;
+                    }
+                } else {
+                    if(hour < 0 || hour > 23){
+                        return { time: -1, newInd: -1, star: false };
                     }
                 }
-                curr = curr.slice(0, -2);
+            } else {
+                // Compact military format: 930 => 09:30, 1430 => 14:30
+                const compactMatch = token.match(/^(\d{3,4})$/);
+                if(!compactMatch){
+                    return { time: -1, newInd: -1, star: false };
+                }
+                const digits = token;
+                if(digits.length === 3){
+                    hour = Number(digits.slice(0, 1));
+                    minute = Number(digits.slice(1));
+                } else {
+                    hour = Number(digits.slice(0, 2));
+                    minute = Number(digits.slice(2));
+                }
+                if(!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute >= 60){
+                    return { time: -1, newInd: -1, star: false };
+                }
             }
-            time+=Number(curr);
+
+            const time = hour * 60 + minute;
+            if(!Number.isFinite(time)){
+                return { time: -1, newInd: -1, star: false };
+            }
+
             return {
-                time: time,
-                newInd: ind,
-                star: star
+                time,
+                newInd: ind > tokenStart ? ind : -1,
+                star
             }
         }
         catch {
@@ -118,6 +138,7 @@ const parseFile = async (app: App, file: TFile) => {
         let ret = getTime(val, ind);
         if(ret.newInd === -1) return false;
         startTime = ret.time;
+        if(!Number.isFinite(startTime)) return false;
         ind = ret.newInd;
         //console.log(startTime)
         while(ind<len && (val[ind] === ' ' || isNaN(Number(val[ind])))){
@@ -127,9 +148,11 @@ const parseFile = async (app: App, file: TFile) => {
         ret = getTime(val, ind);
         if(ret.newInd === -1) return false;
         endTime = ret.time;
+        if(!Number.isFinite(endTime)) return false;
         if(endTime<=startTime){
             endTime+=1440
         }
+        if(!Number.isFinite(endTime)) return false;
         ind = ret.newInd;
         //console.log(endTime)
         while(val[ind]===' '){
@@ -160,15 +183,20 @@ const parseFile = async (app: App, file: TFile) => {
         let lines: string[] = contents.split(/\r?\n/)
         let minTime = 1440;
         let maxTime = 0;
+        let hasValidTimes = false;
         lines.forEach(val => {
             if(addToSchedule(val)){
-                minTime = Math.min(minTime, schedule[schedule.length-1]!.startTime)
-                maxTime = Math.max(maxTime, schedule[schedule.length-1]!.endTime)
+                const latestEntry = schedule[schedule.length-1]!;
+                if(Number.isFinite(latestEntry.startTime) && Number.isFinite(latestEntry.endTime)){
+                    minTime = Math.min(minTime, latestEntry.startTime)
+                    maxTime = Math.max(maxTime, latestEntry.endTime)
+                    hasValidTimes = true;
+                }
             }
         });
         return {
-            minTime: minTime,
-            maxTime: maxTime
+            minTime: hasValidTimes ? minTime : Number.NaN,
+            maxTime: hasValidTimes ? maxTime : Number.NaN
         }
     }
     const criticalTimes = await parse();

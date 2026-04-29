@@ -1,5 +1,8 @@
 import { TimeBlock } from './parseFile'
 const getIdleTime = (schedule: TimeBlock[], totalTime: number): number => {
+    if(!Number.isFinite(totalTime) || totalTime <= 0){
+        return 0
+    }
     let totalPlannedTime: number = 0
     let currStart = 0
     let reach = 0
@@ -15,7 +18,7 @@ const getIdleTime = (schedule: TimeBlock[], totalTime: number): number => {
         }
     }
     totalPlannedTime +=reach-currStart
-    return totalTime - totalPlannedTime
+    return Math.max(0, totalTime - totalPlannedTime)
 }
 
 export default getIdleTime

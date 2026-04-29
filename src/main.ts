@@ -124,6 +124,10 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       this.renderInfoDropdown();
     }
     this.renderTabs();
+    if (this.currDayData.length === 0) {
+      this.renderNoDataState();
+      return;
+    }
     this.renderSummaryCards();
     this.renderMainContent();
     this.renderDailyTable();
@@ -355,6 +359,23 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       "To comment specifications of a task without it affecting the task analysis, comment with '//' AFTER the task name. Ex) 4:00pm - 4:30pm Meditate // with waterfall sounds",
     ].forEach((text) => {
       list.createEl("li", { text });
+    });
+  }
+
+  private renderNoDataState() {
+    const emptyWrap = this.bodyEl!.createDiv({
+      cls: "odpa-empty-state",
+      attr: {
+        style:
+          "margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--background-modifier-border); border-radius: 10px; background: var(--background-secondary);",
+      },
+    });
+
+    emptyWrap.createEl("h3", { text: "No files found for this time range." });
+    emptyWrap.createEl("p", {
+      text:
+        "There are no daily note files in the selected days/date range to analyze. Try a wider range or choose all time.",
+      attr: { style: "margin-top: 0.5rem; color: var(--text-muted);" },
     });
   }
 
@@ -904,6 +925,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
         if (!normalized) continue;
 
         const duration = task.endTime - task.startTime;
+        if (!Number.isFinite(duration) || duration < 0) continue;
         const existing = taskMap.get(normalized);
         if (!existing) {
           taskMap.set(normalized, {
@@ -912,7 +934,8 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
             lastPerformed: day.date,
           });
         } else {
-          existing.timeSpentMinutes += duration;
+          const prev = Number.isFinite(existing.timeSpentMinutes) ? existing.timeSpentMinutes : 0;
+          existing.timeSpentMinutes = prev + duration;
           if (day.date > existing.lastPerformed) {
             existing.lastPerformed = day.date;
           }
@@ -948,7 +971,8 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       visible.forEach((row) => {
         const tr = tbody.createEl("tr");
         tr.createEl("td", { text: row.name });
-        tr.createEl("td", { text: timeFormat(row.timeSpentMinutes) });
+        const safeMinutes = Number.isFinite(row.timeSpentMinutes) ? row.timeSpentMinutes : 0;
+        tr.createEl("td", { text: timeFormat(safeMinutes) });
         tr.createEl("td", { text: row.lastPerformed });
       });
     };
