@@ -1,4 +1,13 @@
-import { App, Modal, Plugin, TFile } from "obsidian";
+import {
+  App,
+  Component,
+  MarkdownRenderChild,
+  MarkdownRenderer,
+  Modal,
+  Plugin,
+  TFile,
+  requestUrl,
+} from "obsidian";
 import {
   Chart,
   LineController,
@@ -11,7 +20,7 @@ import {
 } from "chart.js";
 import { TimeBlock } from "./parseFile";
 import parseFile from './parseFile'
-import { DEFAULT_SETTINGS, DSASettings } from "./settings";
+import { DEFAULT_SETTINGS, DSASettingTab, DSASettings } from "./settings";
 import convTime from './convTime'
 import timeFormat from'./timeFormat'
 
@@ -41,12 +50,51 @@ const setCssProps = (el: HTMLElement, props: Record<string, string>) => {
   }
 };
 
+/** Screen-corner brackets: outward = expand, inward = minimize (stroke icon). */
+function createExpandToggleSvg(expanded: boolean): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "18");
+  svg.setAttribute("height", "18");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "2");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  path.setAttribute(
+    "d",
+    expanded
+      ? "M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"
+      : "M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4",
+  );
+  svg.appendChild(path);
+  return svg;
+}
+
+const LLM_CHAT_COMPLETIONS_URL = "https://api.llm7.io/v1/chat/completions";
+
+const ASSISTANT_SYSTEM_PROMPT = `You are a concise, supportive productivity coach for someone using a Day Planner style schedule in Obsidian.
+You MUST base your reasoning only on the activity summary in this message. It matches the on-screen summary cards and tasks rollup (no per-day schedule or raw notes). If something is not in that summary, say you cannot infer it.
+Focus on: realistic prioritization, timeboxing, reducing idle/unplanned gaps, protecting deep work, and improving completion on priority tasks.
+Give short, actionable bullet points when possible. Avoid medical or clinical claims.`;
+
+const MAX_HISTORY_MESSAGE_CHARS = 6000;
+/** Safety cap on full system message (prompt + activity) passed to the API. */
+const MAX_SYSTEM_TOTAL_CHARS = 48000;
+
 class StatsModal extends Modal {
   private activeTab: TabId = "7d";
   private bodyEl: HTMLElement | null = null;
   private showInfo = false;
   private currDayData: DayData[] = [];
   private taskChart: Chart | null = null;
+  /** When true, stats UI is hidden and the assistant uses most of the modal */
+  private chatExpanded = false;
+  private modalRoot: HTMLElement | null = null;
+  /** Owns MarkdownRenderer children for assistant bubbles (modal-scoped, no plugin-as-component). */
+  private chatMdScope: Component | null = null;
 
   constructor(
     app: App,
@@ -99,15 +147,39 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
 
   onOpen() {
     this.contentEl.parentElement?.addClass("odpa-stats-modal");
+    this.modalRoot = this.contentEl.closest(".modal");
+    this.chatMdScope = new Component();
+    this.plugin.addChild(this.chatMdScope);
     this.bodyEl = this.contentEl.createDiv({ cls: "odpa-stats-body" });
     this.getDisplayDataPast(30)
     this.renderResults();
   }
 
   onClose() {
+    this.modalRoot?.removeClass("odpa-chat-expanded");
+    this.modalRoot = null;
+    this.chatExpanded = false;
+    if (this.chatMdScope) {
+      this.plugin.removeChild(this.chatMdScope);
+      this.chatMdScope = null;
+    }
     this.contentEl.parentElement?.removeClass("odpa-stats-modal");
     this.contentEl.empty();
     this.bodyEl = null;
+  }
+
+  private applyChatExpandedLayout() {
+    if (!this.modalRoot) {
+      this.modalRoot = this.contentEl.closest(".modal");
+    }
+    if (!this.bodyEl) return;
+    if (this.chatExpanded) {
+      this.bodyEl.addClass("odpa-chat-expanded");
+      this.modalRoot?.addClass("odpa-chat-expanded");
+    } else {
+      this.bodyEl.removeClass("odpa-chat-expanded");
+      this.modalRoot?.removeClass("odpa-chat-expanded");
+    }
   }
 
   private renderResults() {
@@ -125,17 +197,21 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     }
     this.renderTabs();
     if (this.currDayData.length === 0) {
+      this.chatExpanded = false;
       this.renderNoDataState();
+      this.applyChatExpandedLayout();
       return;
     }
     this.renderSummaryCards();
     this.renderMainContent();
     this.renderDailyTable();
     this.renderTasksTable();
+    this.applyChatExpandedLayout();
   }
 
   private renderCustom() {
     if (!this.bodyEl) return;
+    this.chatExpanded = false;
     this.bodyEl.empty();
     this.renderHeader();
     if (this.showInfo) {
@@ -308,6 +384,8 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
         this.renderResults();
       }
     });
+
+    this.applyChatExpandedLayout();
   }
 
   private renderHeader() {
@@ -340,7 +418,15 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       this.renderResults();
     });
 
-    right.createEl("span", { cls: "odpa-stats-updated", text: "Last updated: —" });
+    const updatedAt = this.plugin.dayDataUpdatedAt;
+    const updatedLabel =
+      updatedAt > 0
+        ? `Last updated: ${new Date(updatedAt).toLocaleString(undefined, {
+            dateStyle: "short",
+            timeStyle: "short",
+          })}`
+        : "Last updated: —";
+    right.createEl("span", { cls: "odpa-stats-updated", text: updatedLabel });
   }
 
   private renderInfoDropdown() {
@@ -456,20 +542,341 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     card.createEl("div", { cls: "odpa-card-value", text: value });
   }
 
+  /** Aggregate metrics only—same idea as the summary cards plus top tasks by time (tasks breakdown). No per-day rows. */
+  private buildActivityContext(): string {
+    const days = this.currDayData;
+    if (days.length === 0) {
+      return "No daily planner data in the currently selected time range (no matching daily notes or empty schedules).";
+    }
+
+    const sortedDates = [...days].map((d) => d.date).sort();
+    const rangeStart = sortedDates[0]!;
+    const rangeEnd = sortedDates[sortedDates.length - 1]!;
+    const n = days.length;
+
+    let startSum = 0;
+    let endSum = 0;
+    let idleSum = 0;
+    let priorityTasks = 0;
+    let completedPriorityTasks = 0;
+    let totalTasks = 0;
+    let completedTasks = 0;
+
+    for (const curr of days) {
+      for (const currTask of curr.schedule) {
+        totalTasks++;
+        if (currTask.completed) completedTasks++;
+        if (currTask.priority) {
+          priorityTasks++;
+          if (currTask.completed) completedPriorityTasks++;
+        }
+      }
+      if (!Number.isNaN(curr.earliest)) startSum += curr.earliest;
+      if (!Number.isNaN(curr.latest)) endSum += curr.latest;
+      if (!Number.isNaN(curr.idle)) idleSum += curr.idle;
+    }
+
+    const avgStart = convTime(Math.round(startSum / n));
+    const avgEnd = convTime(Math.round(endSum / n));
+    const avgIdle = timeFormat(Math.round(idleSum / n));
+    const priorityRate =
+      priorityTasks === 0
+        ? "N/A"
+        : `${((completedPriorityTasks / priorityTasks) * 100).toFixed(1)}% (${completedPriorityTasks}/${priorityTasks})`;
+    const taskRate =
+      totalTasks === 0
+        ? "N/A"
+        : `${((completedTasks / totalTasks) * 100).toFixed(1)}% (${completedTasks}/${totalTasks})`;
+
+    const normalizeTaskName = (name: string) =>
+      name.trim().toLowerCase().replace(/\s+/g, " ");
+    const taskMinutes = new Map<string, { display: string; minutes: number }>();
+    for (const day of days) {
+      for (const block of day.schedule) {
+        const norm = normalizeTaskName(block.name);
+        if (!norm) continue;
+        const mins = block.endTime - block.startTime;
+        if (!Number.isFinite(mins) || mins < 0) continue;
+        const display = block.name.trim();
+        const prev = taskMinutes.get(norm);
+        if (!prev) taskMinutes.set(norm, { display, minutes: mins });
+        else prev.minutes += mins;
+      }
+    }
+
+    const topTasks = Array.from(taskMinutes.values())
+      .sort((a, b) => b.minutes - a.minutes)
+      .slice(0, 15)
+      .map((t) => `- ${t.display}: ${timeFormat(t.minutes)} total`);
+
+    return [
+      "Summary (stat cards):",
+      `Days analyzed: ${n}`,
+      `Date range: ${rangeStart} to ${rangeEnd}`,
+      `Average day length: ${avgStart} – ${avgEnd}`,
+      `Average unplanned/idle per day: ${avgIdle}`,
+      `Priority task completion: ${priorityRate}`,
+      `Overall task completion: ${taskRate}`,
+      "",
+      "Tasks breakdown (top by total time spent, as in the tasks table):",
+      topTasks.length ? topTasks.join("\n") : "(none)",
+    ].join("\n");
+  }
+
+  private clipMessageForApi(text: string, max: number): string {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 40)}\n… [message truncated for API size]`;
+  }
+
+  private async callLLM(): Promise<string> {
+    const activityContext = this.buildActivityContext();
+    let systemContent = `${ASSISTANT_SYSTEM_PROMPT}\n\n--- Activity data for this stats view ---\n${activityContext}`;
+    if (systemContent.length > MAX_SYSTEM_TOTAL_CHARS) {
+      systemContent = `${systemContent.slice(0, MAX_SYSTEM_TOTAL_CHARS - 120)}\n\n… [system prompt truncated for API size]`;
+    }
+
+    const trimmed = this.plugin.settings.chatHistory.slice(-20);
+    const messages: { role: string; content: string }[] = [
+      { role: "system", content: systemContent },
+      ...trimmed.map((m) => ({
+        role: m.role,
+        content: this.clipMessageForApi(m.content, MAX_HISTORY_MESSAGE_CHARS),
+      })),
+    ];
+
+    const res = await requestUrl({
+      url: LLM_CHAT_COMPLETIONS_URL,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.plugin.settings.chatModel,
+        messages,
+        temperature: 0.7,
+      }),
+    });
+
+    if (res.status < 200 || res.status >= 300) {
+      const fromJson = res.json as { error?: { message?: string } } | null;
+      let detail =
+        fromJson?.error?.message ??
+        (typeof res.text === "string" && res.text.length > 0
+          ? res.text.slice(0, 800)
+          : "");
+      if (!detail) detail = `HTTP ${res.status}`;
+      throw new Error(`Assistant request failed (${res.status}): ${detail}`);
+    }
+
+    const data = res.json as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      error?: { message?: string };
+    };
+    if (data.error?.message) {
+      throw new Error(data.error.message);
+    }
+
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error("Empty response from assistant.");
+    }
+    return content;
+  }
+
+  private renderAssistantPanel(container: HTMLElement) {
+    container.addClass("odpa-chat-shell");
+
+    const header = container.createDiv({ cls: "odpa-chat-header" });
+    header.createEl("h3", { text: "Assistant" });
+
+    const headerActions = header.createDiv({ cls: "odpa-chat-header-actions" });
+
+    const expandBtn = headerActions.createEl("button", {
+      cls: "odpa-chat-expand",
+      attr: { type: "button" },
+    });
+    const expandIconWrap = expandBtn.createSpan({ cls: "odpa-chat-expand-icon-wrap" });
+    const syncExpandIcon = () => {
+      expandIconWrap.empty();
+      expandIconWrap.appendChild(createExpandToggleSvg(this.chatExpanded));
+      expandBtn.setAttribute(
+        "aria-label",
+        this.chatExpanded ? "Minimize chat" : "Expand chat",
+      );
+    };
+    syncExpandIcon();
+    expandBtn.addEventListener("click", () => {
+      this.chatExpanded = !this.chatExpanded;
+      syncExpandIcon();
+      this.applyChatExpandedLayout();
+      requestAnimationFrame(() => {
+        logEl.scrollTop = logEl.scrollHeight;
+        textarea.focus();
+      });
+    });
+
+    const clearBtn = headerActions.createEl("button", {
+      cls: "odpa-chat-clear mod-small",
+      text: "Clear",
+      attr: { type: "button" },
+    });
+
+    const logEl = container.createDiv({ cls: "odpa-chat-log" });
+
+    const statusEl = container.createDiv({ cls: "odpa-chat-status" });
+
+    const composer = container.createDiv({ cls: "odpa-chat-composer" });
+    const composerRow = composer.createDiv({ cls: "odpa-chat-composer-row" });
+    const textarea = composerRow.createEl("textarea", {
+      cls: "odpa-chat-input",
+      attr: {
+        rows: "2",
+        placeholder: "Message…",
+      },
+    });
+    const sendBtn = composerRow.createEl("button", {
+      cls: "odpa-chat-send",
+      attr: { type: "button", "aria-label": "Send message" },
+    });
+    const sendInner = sendBtn.createSpan({ cls: "odpa-chat-send-inner" });
+    const iconWrap = sendInner.createSpan({ cls: "odpa-chat-send-icon" });
+    const sendSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    sendSvg.setAttribute("viewBox", "0 0 24 24");
+    sendSvg.setAttribute("width", "18");
+    sendSvg.setAttribute("height", "18");
+    sendSvg.setAttribute("aria-hidden", "true");
+    const sendPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    sendPath.setAttribute("fill", "currentColor");
+    sendPath.setAttribute("d", "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z");
+    sendSvg.appendChild(sendPath);
+    iconWrap.appendChild(sendSvg);
+    sendInner.createSpan({ cls: "odpa-chat-send-label", text: "Send" });
+
+    const renderMessages = async () => {
+      logEl.empty();
+      const hist = this.plugin.settings.chatHistory;
+      const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
+
+      if (hist.length === 0) {
+        const hint = logEl.createDiv({ cls: "odpa-chat-empty" });
+        hint.createDiv({
+          cls: "odpa-chat-empty-title",
+          text: "Productivity assistant",
+        });
+        hint.createDiv({
+          cls: "odpa-chat-empty-desc",
+          text: "Ask about your schedule in this stats view. Messages are saved across sessions. Expand for a full-screen chat.",
+        });
+      } else {
+        for (const m of hist) {
+          const row = logEl.createDiv({
+            cls: `odpa-chat-row odpa-chat-row-${m.role}`,
+          });
+          const bubble = row.createDiv({
+            cls: `odpa-chat-bubble odpa-chat-bubble-${m.role}`,
+          });
+          const bodyEl = bubble.createDiv({
+            cls: "odpa-chat-bubble-body",
+          });
+
+          if (m.role === "assistant" && this.chatMdScope) {
+            bodyEl.addClass("odpa-chat-md");
+            const mdChild = new MarkdownRenderChild(bodyEl);
+            this.chatMdScope.addChild(mdChild);
+            await MarkdownRenderer.render(
+              this.app,
+              m.content,
+              bodyEl,
+              sourcePath,
+              mdChild,
+            );
+          } else {
+            bodyEl.setText(m.content);
+          }
+
+          row.createDiv({
+            cls: "odpa-chat-meta",
+            text: new Date(m.ts).toLocaleTimeString(undefined, {
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+          });
+        }
+      }
+      requestAnimationFrame(() => {
+        logEl.scrollTop = logEl.scrollHeight;
+      });
+    };
+
+    void renderMessages();
+
+    clearBtn.addEventListener("click", () => {
+      void (async () => {
+        this.plugin.settings.chatHistory = [];
+        await this.plugin.saveSettings();
+        statusEl.setText("");
+        await renderMessages();
+      })();
+    });
+
+    const setBusy = (busy: boolean) => {
+      textarea.disabled = busy;
+      sendBtn.disabled = busy;
+    };
+
+    const send = async () => {
+      const text = textarea.value.trim();
+      if (!text) return;
+
+      textarea.value = "";
+      this.plugin.settings.chatHistory.push({
+        role: "user",
+        content: text,
+        ts: Date.now(),
+      });
+      await this.plugin.saveSettings();
+      await renderMessages();
+
+      statusEl.setText("Thinking…");
+      setBusy(true);
+      try {
+        const reply = await this.callLLM();
+        this.plugin.settings.chatHistory.push({
+          role: "assistant",
+          content: reply,
+          ts: Date.now(),
+        });
+        await this.plugin.saveSettings();
+        await renderMessages();
+        statusEl.setText("");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        statusEl.setText(`Error: ${msg}`);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    sendBtn.addEventListener("click", () => {
+      void send();
+    });
+
+    textarea.addEventListener("keydown", (evt: KeyboardEvent) => {
+      if (evt.key === "Enter" && !evt.shiftKey) {
+        evt.preventDefault();
+        void send();
+      }
+    });
+  }
+
   private renderMainContent() {
     const main = this.bodyEl!.createDiv({ cls: "odpa-stats-main" });
 
     const left = main.createDiv({
-      cls: "odpa-panel odpa-panel-highlights",
+      cls: "odpa-panel odpa-panel-assistant",
       attr: {
         style: "flex: 1 1 0; min-width: 0;",
       },
     });
-    left.createEl("h3", { text: "Highlights" });
-    const list = left.createEl("ul", { cls: "odpa-highlights-list" });
-    ["Most productive day: —", "Earliest start: —", "Longest idle gap: —"].forEach((text) =>
-      list.createEl("li", { text })
-    );
+    this.renderAssistantPanel(left);
 
     const right = main.createDiv({
       cls: "odpa-panel odpa-panel-chart",
@@ -500,7 +907,8 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       cls: "odpa-chart-select-label",
     });
 
-    const selectEl = selectWrap.createEl("select", {
+    const selectShell = selectWrap.createDiv({ cls: "odpa-chart-select-shell" });
+    const selectEl = selectShell.createEl("select", {
       cls: "odpa-chart-select",
     });
     setCssProps(selectEl, {
@@ -510,6 +918,24 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       overflow: "hidden",
       "text-overflow": "ellipsis",
     });
+
+    const caret = selectShell.createSpan({
+      cls: "odpa-chart-select-caret",
+      attr: { "aria-hidden": "true" },
+    });
+    const caretSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    caretSvg.setAttribute("viewBox", "0 0 24 24");
+    caretSvg.setAttribute("width", "14");
+    caretSvg.setAttribute("height", "14");
+    const caretPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    caretPath.setAttribute("fill", "none");
+    caretPath.setAttribute("stroke", "currentColor");
+    caretPath.setAttribute("stroke-width", "2");
+    caretPath.setAttribute("stroke-linecap", "round");
+    caretPath.setAttribute("stroke-linejoin", "round");
+    caretPath.setAttribute("d", "M6 9l6 6 6-6");
+    caretSvg.appendChild(caretPath);
+    caret.appendChild(caretSvg);
 
     const chartBox = right.createDiv({
       cls: "odpa-chart-placeholder",
@@ -1054,6 +1480,9 @@ export default class HelloWorldPlugin extends Plugin {
 
   dayData: DayData[] = []; // parse results stored
 
+  /** When `refreshDayData` last finished (ms since epoch). */
+  dayDataUpdatedAt = 0;
+
   private isDailyNoteByName(file: TFile): boolean {
     return this.DAILY_NOTE_RE.test(file.basename);
   }
@@ -1065,6 +1494,7 @@ export default class HelloWorldPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
     await this.refreshDayData();
+    this.addSettingTab(new DSASettingTab(this.app, this));
     this.addCommand({
       id: "day-planner-analyzer-open",
       name: "Advanced statistics",
@@ -1089,6 +1519,7 @@ async refreshDayData() {
 
   this.dayData = next;
   this.dayData.sort((a, b) => a.date.localeCompare(b.date));
+  this.dayDataUpdatedAt = Date.now();
   console.error("[ODPA] dayData refreshed:", this.dayData.length);
 }
 
