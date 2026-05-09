@@ -1,11 +1,14 @@
 import {
   App,
   Component,
+  Debouncer,
   MarkdownRenderChild,
   MarkdownRenderer,
   Modal,
   Plugin,
+  TAbstractFile,
   TFile,
+  debounce,
   requestUrl,
 } from "obsidian";
 import {
@@ -87,6 +90,8 @@ const MAX_SYSTEM_TOTAL_CHARS = 48000;
 class StatsModal extends Modal {
   private activeTab: TabId = "7d";
   private bodyEl: HTMLElement | null = null;
+  /** Wrapper below tabs; receives summary, tables, custom controls, or empty state. */
+  private tabContentMount: HTMLElement | null = null;
   private showInfo = false;
   private currDayData: DayData[] = [];
   private taskChart: Chart | null = null;
@@ -168,6 +173,19 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     this.bodyEl = null;
   }
 
+  private getTabContentParent(): HTMLElement {
+    return this.tabContentMount ?? this.bodyEl!;
+  }
+
+  /** Panel under tabs; plays one-shot enter animation. */
+  private beginTabContentPanel() {
+    this.tabContentMount = this.bodyEl!.createDiv({
+      cls: "odpa-tab-panel odpa-tab-panel--enter",
+    });
+    const panel = this.tabContentMount;
+    window.setTimeout(() => panel.removeClass("odpa-tab-panel--enter"), 280);
+  }
+
   private applyChatExpandedLayout() {
     if (!this.modalRoot) {
       this.modalRoot = this.contentEl.closest(".modal");
@@ -196,6 +214,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       this.renderInfoDropdown();
     }
     this.renderTabs();
+    this.beginTabContentPanel();
     if (this.currDayData.length === 0) {
       this.chatExpanded = false;
       this.renderNoDataState();
@@ -218,8 +237,9 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       this.renderInfoDropdown();
     }
     this.renderTabs();
+    this.beginTabContentPanel();
 
-    const customWrap = this.bodyEl.createDiv({ cls: "odpa-custom-controls" });
+    const customWrap = this.tabContentMount!.createDiv({ cls: "odpa-custom-controls" });
 
     const title = customWrap.createDiv({ cls: "odpa-custom-title" });
     title.createEl("h3", { text: "Custom stats" });
@@ -449,41 +469,44 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
   }
 
   private renderNoDataState() {
-    const emptyWrap = this.bodyEl!.createDiv({
+    const emptyWrap = this.getTabContentParent().createDiv({
       cls: "odpa-empty-state",
-      attr: {
-        style:
-          "margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--background-modifier-border); border-radius: 10px; background: var(--background-secondary);",
-      },
     });
 
     emptyWrap.createEl("h3", { text: "No files found for this time range." });
     emptyWrap.createEl("p", {
+      cls: "odpa-empty-state-desc",
       text:
         "There are no daily note files in the selected days/date range to analyze. Try a wider range or choose all time.",
-      attr: { style: "margin-top: 0.5rem; color: var(--text-muted);" },
     });
   }
 
   private renderTabs() {
     const tabsWrap = this.bodyEl!.createDiv({ cls: "odpa-stats-tabs" });
+    tabsWrap.setAttribute("role", "tablist");
+    tabsWrap.setAttribute("aria-label", "Time range");
     const tabs: { id: TabId; label: string }[] = [
       { id: "7d", label: "Past 7 days" },
       { id: "30d", label: "Past 30 days" },
       { id: "custom", label: "Custom" },
     ];
     tabs.forEach(({ id, label }) => {
-      const tab = tabsWrap.createEl("button", { cls: "odpa-tab", text: label });
+      const tab = tabsWrap.createEl("button", {
+        cls: "odpa-tab",
+        text: label,
+        attr: { type: "button", role: "tab" },
+      });
+      tab.setAttribute("aria-selected", this.activeTab === id ? "true" : "false");
       if (this.activeTab === id) tab.addClass("is-active");
       tab.addEventListener("click", () => {
         this.activeTab = id;
-        if(id == "7d"){
-        this.getDisplayDataPast(30)
-        this.renderResults(); 
-        } else if(id == "30d"){
-        this.getDisplayDataPast(45)
-        this.renderResults(); 
-        } else{
+        if (id == "7d") {
+          this.getDisplayDataPast(30);
+          this.renderResults();
+        } else if (id == "30d") {
+          this.getDisplayDataPast(45);
+          this.renderResults();
+        } else {
           this.renderCustom();
         }
       });
@@ -525,7 +548,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     const priorityRate = priorityTasks === 0 ? "N/A" : completedPriorityTasks/priorityTasks*100
     const taskRate = completedTasks/totalTasks*100
     console.error(idleTime)
-    const row = this.bodyEl!.createDiv({ cls: "odpa-stats-cards" });
+    const row = this.getTabContentParent().createDiv({ cls: "odpa-stats-cards" });
     const cards: { label: string; value: string }[] = [
       { label: "Days analyzed", value: ""+this.currDayData.length },
       { label: "Avg day length", value: ""+convTime(Math.round(start)) +" - " + convTime(Math.round(end))},
@@ -750,7 +773,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     iconWrap.appendChild(sendSvg);
     sendInner.createSpan({ cls: "odpa-chat-send-label", text: "Send" });
 
-    const renderMessages = async () => {
+    const renderMessages = async (animateTail = 0) => {
       logEl.empty();
       const hist = this.plugin.settings.chatHistory;
       const sourcePath = this.app.workspace.getActiveFile()?.path ?? "";
@@ -766,10 +789,18 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
           text: "Ask about your schedule in this stats view. Messages are saved across sessions. Expand for a full-screen chat.",
         });
       } else {
-        for (const m of hist) {
+        const n = hist.length;
+        for (let i = 0; i < hist.length; i++) {
+          const m = hist[i]!;
           const row = logEl.createDiv({
             cls: `odpa-chat-row odpa-chat-row-${m.role}`,
           });
+          if (animateTail > 0 && i >= n - animateTail) {
+            row.addClass("odpa-chat-row--enter");
+            const clearEnter = () => row.removeClass("odpa-chat-row--enter");
+            row.addEventListener("animationend", clearEnter, { once: true });
+            window.setTimeout(clearEnter, 380);
+          }
           const bubble = row.createDiv({
             cls: `odpa-chat-bubble odpa-chat-bubble-${m.role}`,
           });
@@ -827,13 +858,16 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       if (!text) return;
 
       textarea.value = "";
+      sendBtn.addClass("odpa-chat-send--success");
+      window.setTimeout(() => sendBtn.removeClass("odpa-chat-send--success"), 220);
+
       this.plugin.settings.chatHistory.push({
         role: "user",
         content: text,
         ts: Date.now(),
       });
       await this.plugin.saveSettings();
-      await renderMessages();
+      await renderMessages(1);
 
       statusEl.setText("Thinking…");
       setBusy(true);
@@ -845,7 +879,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
           ts: Date.now(),
         });
         await this.plugin.saveSettings();
-        await renderMessages();
+        await renderMessages(1);
         statusEl.setText("");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -868,7 +902,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
   }
 
   private renderMainContent() {
-    const main = this.bodyEl!.createDiv({ cls: "odpa-stats-main" });
+    const main = this.getTabContentParent().createDiv({ cls: "odpa-stats-main" });
 
     const left = main.createDiv({
       cls: "odpa-panel odpa-panel-assistant",
@@ -1142,7 +1176,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
   }
 
   private renderDailyTable() {
-    const section = this.bodyEl!.createDiv({ cls: "odpa-table-section" });
+    const section = this.getTabContentParent().createDiv({ cls: "odpa-table-section" });
     section.createEl("h3", { text: "Daily breakdown" });
     const tableWrap = section.createDiv({ cls: "odpa-table-wrap" });
     const table = tableWrap.createEl("table", { cls: "odpa-table" });
@@ -1327,7 +1361,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
   }
 
   private renderTasksTable() {
-    const section = this.bodyEl!.createDiv({ cls: "odpa-table-section" });
+    const section = this.getTabContentParent().createDiv({ cls: "odpa-table-section" });
     section.createEl("h3", { text: "Tasks breakdown" });
     const tableWrap = section.createDiv({ cls: "odpa-table-wrap" });
     const table = tableWrap.createEl("table", { cls: "odpa-table" });
@@ -1483,6 +1517,8 @@ export default class HelloWorldPlugin extends Plugin {
   /** When `refreshDayData` last finished (ms since epoch). */
   dayDataUpdatedAt = 0;
 
+  private dayDataRefreshDebouncer: Debouncer<[], void> | null = null;
+
   private isDailyNoteByName(file: TFile): boolean {
     return this.DAILY_NOTE_RE.test(file.basename);
   }
@@ -1493,7 +1529,39 @@ export default class HelloWorldPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
-    await this.refreshDayData();
+
+    this.dayDataRefreshDebouncer = debounce(
+      () => {
+        void this.refreshDayData();
+      },
+      400,
+      true,
+    );
+
+    const scheduleRefreshIfDailyNote = (file: TAbstractFile) => {
+      if (file instanceof TFile && this.isDailyNoteByName(file)) {
+        this.dayDataRefreshDebouncer?.run();
+      }
+    };
+
+    this.app.workspace.onLayoutReady(() => {
+      void this.refreshDayData();
+    });
+
+    this.registerEvent(this.app.vault.on("modify", scheduleRefreshIfDailyNote));
+    this.registerEvent(this.app.vault.on("create", scheduleRefreshIfDailyNote));
+    this.registerEvent(this.app.vault.on("delete", scheduleRefreshIfDailyNote));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        scheduleRefreshIfDailyNote(file);
+        const seg = oldPath.split("/").pop() ?? "";
+        const oldBasename = seg.replace(/\.md$/i, "");
+        if (this.DAILY_NOTE_RE.test(oldBasename)) {
+          this.dayDataRefreshDebouncer?.run();
+        }
+      }),
+    );
+
     this.addSettingTab(new DSASettingTab(this.app, this));
     this.addCommand({
       id: "day-planner-analyzer-open",
