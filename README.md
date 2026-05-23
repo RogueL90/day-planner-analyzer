@@ -25,8 +25,7 @@ Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-pl
 
 Press `Ctrl/Cmd + P`, type **Advanced statistics**, and run the command.
 
-<img width="791" height="166" alt="Screenshot 2026-05-20 at 5 45 30 PM" src="https://github.com/user-attachments/assets/ea31cbfc-8e1a-4673-a29a-ab78be46d002" />
-
+<img width="758" height="124" alt="Screenshot 2026-05-23 at 1 28 16 PM" src="https://github.com/user-attachments/assets/ff09ccfc-6be2-411b-835a-4cb5795fc7d9" />
 
 ---
 
