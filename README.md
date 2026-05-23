@@ -1,7 +1,6 @@
 # Day Planner Analyzer v1.00.00
 
-See how you really spend your days. This plugin reads your Day Planner-style daily notes and displays advanced, customizable statistics to help track your long term progress and give insights to your habits.<img width="770" height="174" alt="Screenshot 2026-05-20 at 5 44 02 PM" src="https://github.com/user-attachments/assets/f5d7e38c-f249-4322-805f-0af70f0d1095" />
- 
+Track how you really spend your time. This plugin reads your Day Planner-style daily notes and displays advanced, customizable statistics to help track your long term progress and give insights to your habits.
 
 Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-planner) plugin — it does not replace your timeline; it adds a stats view on top of the notes you already write.
 
@@ -15,9 +14,9 @@ Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-pl
 - Reads time-boxed tasks from your daily notes and keeps stats up to date as you edit (Fromatting on sync with [Obsidian Day Planner Plugin](https://github.com/ivan-lednev/obsidian-day-planner)
 - Shows how many days you planned, how long your days run, and how much time was left unplanned
 - Tracks how often you finish tasks - especially ones you mark as priority
-- Lets you pick a week, a month, or any custom date range
-- Includes an AI chat assistant that gives you personalized advice to lifemaxx based on how you spend your days 
-- Charts how much time you spend on a task over time
+- Lets you pick a week, a month, or any custom date range for analysis
+- Includes an AI chat assistant that gives you personalized advice to lifemaxx based on your daily notes
+- Charts how much time you spend on each task over time
 - Lists each day and each task in simple tables you can sort
 
 ## How to use
@@ -26,8 +25,7 @@ Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-pl
 
 Press `Ctrl/Cmd + P`, type **Advanced statistics**, and run the command.
 
-<img width="791" height="166" alt="Screenshot 2026-05-20 at 5 45 30 PM" src="https://github.com/user-attachments/assets/ea31cbfc-8e1a-4673-a29a-ab78be46d002" />
-
+<img width="758" height="124" alt="Screenshot 2026-05-23 at 1 28 16 PM" src="https://github.com/user-attachments/assets/ff09ccfc-6be2-411b-835a-4cb5795fc7d9" />
 
 ---
 
@@ -74,38 +72,27 @@ Ask things like what to focus on today, how to reduce gaps in your schedule, or 
 
 You can expand the chat, clear the conversation, or change the model in settings. Chat history is saved until you clear it.
 
-**Screenshot:** Assistant panel with a short example question and reply.
-
-**Screenshot:** Expanded assistant view (full-width chat).
+<img width="1476" height="933" alt="Screenshot 2026-05-20 at 6 25 08 PM" src="https://github.com/user-attachments/assets/b21b2dec-2b56-4a01-a8ea-a28dc99f7f8d" />
 
 #### Tasks graph
 
 Choose a task from the dropdown to see how many hours you spent on it each day in your selected range.
 
-**Screenshot:** Tasks graph with the dropdown open and a line chart for one task.
+<img width="449" height="317" alt="Screenshot 2026-05-20 at 6 31 06 PM" src="https://github.com/user-attachments/assets/71539d12-0c3e-41e5-99ff-362d3715f11f" />
 
 #### Daily breakdown
 
 A day-by-day table: when your day started and ended, priority tasks done, and how many tasks you planned vs completed.
 
-**Screenshot:** Daily breakdown table with a few rows and the “Show more” control.
+<img width="926" height="347" alt="Screenshot 2026-05-20 at 6 31 58 PM" src="https://github.com/user-attachments/assets/b64e8f36-191d-44ef-bcb5-926d5d940c14" />
 
 #### Tasks breakdown
 
 See which tasks took the most time overall and when you last did each one.
 
-**Screenshot:** Tasks breakdown table sorted by time spent.
+<img width="924" height="349" alt="Screenshot 2026-05-20 at 6 32 24 PM" src="https://github.com/user-attachments/assets/993da9c4-3666-4382-8a85-b54ba4082532" />
 
 ---
-
-## Settings
-
-Settings → **Day Planner Analyzer**
-
-- **Chat model** — which AI model the assistant uses
-- **Clear assistant chat history** — start a fresh conversation
-
-**Screenshot:** Plugin settings with Chat model dropdown and Clear chat button.
 
 ## Good to know
 
