@@ -1,11 +1,12 @@
 {
-	"id": "odpa",
+	"id": "obsidian-day-planner-analyzer",
 	"name": "Day Planner Analyzer",
 	"styles": ["styles.css"],
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Analytics and a productivity assistant for Day Planner-style daily notes: completion rates, idle time, trends, and task breakdowns.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
+	"description": "Turn your scheduling history into long-term insights, habit trends, and time usage analytics.",
+	"author": "Pranay Jain",
+	"authorUrl": "https://github.com/RogueL90",
+	"fundingUrl": "https://www.unicefusa.org/",
 	"isDesktopOnly": false
 }

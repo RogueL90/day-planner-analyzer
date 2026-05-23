@@ -1,6 +1,7 @@
-# Day Planner Analyzer
+# Day Planner Analyzer v1.00.00
 
-See how you really spend your days. This plugin reads your Day Planner-style daily notes and shows completion rates, unplanned time, trends, and a built-in assistant to help you plan better.
+See how you really spend your days. This plugin reads your Day Planner-style daily notes and displays advanced, customizable statistics to help track your long term progress and give insights to your habits.<img width="770" height="174" alt="Screenshot 2026-05-20 at 5 44 02 PM" src="https://github.com/user-attachments/assets/f5d7e38c-f249-4322-805f-0af70f0d1095" />
+ 
 
 Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-planner) plugin — it does not replace your timeline; it adds a stats view on top of the notes you already write.
 
@@ -11,19 +12,13 @@ Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-pl
 
 ## What it does
 
-- Reads time-boxed tasks from your daily notes and keeps stats up to date as you edit
+- Reads time-boxed tasks from your daily notes and keeps stats up to date as you edit (Fromatting on sync with [Obsidian Day Planner Plugin](https://github.com/ivan-lednev/obsidian-day-planner)
 - Shows how many days you planned, how long your days run, and how much time was left unplanned
-- Tracks how often you finish tasks — especially ones you mark as priority
+- Tracks how often you finish tasks - especially ones you mark as priority
 - Lets you pick a week, a month, or any custom date range
-- Includes a chat assistant that gives advice based on your stats (no API key needed)
+- Includes an AI chat assistant that gives you personalized advice to lifemaxx based on how you spend your days 
 - Charts how much time you spend on a task over time
 - Lists each day and each task in simple tables you can sort
-
-## Install
-
-**From Community Plugins** (when available): Settings → Community plugins → search **Day Planner Analyzer** → Install → Enable.
-
-**Manual install:** Copy `main.js`, `styles.css`, and `manifest.json` into `.obsidian/plugins/odpa/` in your vault, reload Obsidian, then enable the plugin.
 
 ## How to use
 
@@ -31,7 +26,8 @@ Works alongside the [Day Planner](https://github.com/ivan-lednev/obsidian-day-pl
 
 Press `Ctrl/Cmd + P`, type **Advanced statistics**, and run the command.
 
-**Screenshot:** Command palette with “Advanced statistics” highlighted.
+<img width="791" height="166" alt="Screenshot 2026-05-20 at 5 45 30 PM" src="https://github.com/user-attachments/assets/ea31cbfc-8e1a-4673-a29a-ab78be46d002" />
+
 
 ---
 
@@ -55,33 +51,22 @@ Example:
 - Add a `*` after the **end** time for a priority task: `11:00am* Important meeting`
 - Add `//` after the name for a note that should not count as part of the task name
 
-**Screenshot:** A daily note in the editor with several time-boxed tasks, including one checked off and one marked with `*`.
+<img width="696" height="595" alt="Screenshot 2026-05-20 at 5 50 18 PM" src="https://github.com/user-attachments/assets/ac88f476-9ecc-49c9-b770-5f6035889898" />
 
 Tap **Info** inside the stats window anytime for a quick reminder of these rules.
+
 
 ---
 
 ### The stats window
 
-**Screenshot:** Full Advanced statistics modal — header, summary cards, tabs, assistant on the left, chart on the right, tables below.
+<img width="950" height="859" alt="Screenshot 2026-05-20 at 5 51 58 PM" src="https://github.com/user-attachments/assets/2bd7d125-646e-48fd-b3f6-d967733f71fc" />
 
 #### Pick a time range
 
 Use the tabs at the top: **Past 7 days**, **Past 30 days**, or **Custom**.
 
-For Custom you can look at the last N days, pick a start and end date, or view **all time**.
-
-**Screenshot:** The three time-range tabs, with “Past 7 days” selected.
-
-**Screenshot:** Custom tab with “Past N days”, “Between dates”, and “All time” options and the green Calculate button.
-
-#### Summary cards
-
-At the top you’ll see quick numbers for the range you chose: how many days were analyzed, your typical day length, average unplanned time, and how often you complete priority tasks vs all tasks.
-
-**Screenshot:** Row of summary cards (Days analyzed, Avg day length, Avg unplanned/idle time, Priority completion, Task completion).
-
-Stats update when you change your daily notes. **Last updated** in the header shows when the plugin last read your files.
+<img width="575" height="368" alt="Screenshot 2026-05-20 at 5 52 43 PM" src="https://github.com/user-attachments/assets/256a9731-c473-4d4b-b350-94c4451320f1" />
 
 #### Productivity assistant
 
@@ -126,14 +111,7 @@ Settings → **Day Planner Analyzer**
 
 - Only notes named `YYYY-MM-DD.md` are included
 - Lines that don’t follow the time-range format are skipped
-- This plugin shows stats only — it does not edit your schedule
+- This plugin analyzes and displays stats only — it does not edit your schedule
 - The assistant needs internet access and only sees summary numbers, not your full notes
 - If two tasks overlap in time, unplanned time is calculated as if they were one block
 
-## For developers
-
-Clone the repo into `.obsidian/plugins/odpa/`, run `npm i` and `npm run dev`, then reload Obsidian. See [Obsidian’s plugin docs](https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin) for more.
-
-## Acknowledgements
-
-Built for users of the [Day Planner](https://github.com/ivan-lednev/obsidian-day-planner) plugin. Charts use [Chart.js](https://www.chartjs.org/).

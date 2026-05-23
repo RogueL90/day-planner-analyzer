@@ -7,10 +7,13 @@
 }
 
 .modal.odpa-stats-modal.odpa-chat-expanded {
+  display: flex;
+  flex-direction: column;
   width: min(96vw, 1400px);
   max-width: 96vw;
   height: 92vh;
   max-height: 92vh;
+  min-height: 0;
 }
 
 .modal.odpa-stats-modal .modal-content {
@@ -24,11 +27,13 @@
 }
 
 .modal.odpa-stats-modal.odpa-chat-expanded .modal-content {
-  height: 88vh;
-  max-height: 88vh;
-  overflow: hidden;
   flex: 1 1 auto;
   min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: hidden;
+  padding: 1rem 1.25rem;
+  gap: 0;
 }
 
 .odpa-stats-body {
@@ -42,11 +47,22 @@
 .odpa-stats-body.odpa-chat-expanded {
   flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
+  gap: 0;
 }
 
 .odpa-stats-body.odpa-chat-expanded > *:not(.odpa-tab-panel) {
   display: none !important;
+}
+
+.odpa-stats-body.odpa-chat-expanded .odpa-tab-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .odpa-stats-body.odpa-chat-expanded .odpa-tab-panel > *:not(.odpa-stats-main) {
@@ -66,10 +82,12 @@
   display: none !important;
 }
 
-.odpa-stats-body.odpa-chat-expanded .odpa-panel-assistant {
+.odpa-stats-body.odpa-chat-expanded .odpa-panel-assistant,
+.odpa-stats-body.odpa-chat-expanded .odpa-chat-shell {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -521,9 +539,10 @@
 }
 
 .odpa-stats-body.odpa-chat-expanded .odpa-chat-log {
-  max-height: none;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: none;
+  height: auto;
 }
 
 .odpa-chat-empty {
