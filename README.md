@@ -1,4 +1,4 @@
-# Day Planner Analyzer v1.00.00
+# Day Planner Analyzer v1.0.0
 
 Track how you really spend your time. This plugin reads your Day Planner-style daily notes and displays advanced, customizable statistics to help track your long term progress and give insights to your habits.
 
@@ -102,3 +102,4 @@ See which tasks took the most time overall and when you last did each one.
 - The assistant needs internet access and only sees summary numbers, not your full notes
 - If two tasks overlap in time, unplanned time is calculated as if they were one block
 
+I don't take donations, this plugin being useful to someone is enough :)
