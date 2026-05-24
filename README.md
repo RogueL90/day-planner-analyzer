@@ -1,4 +1,4 @@
-# Day Planner Analyzer v1.0.0
+# Day Planner Analyzer v1.0.2
 
 Track how you really spend your time. This plugin reads your Day Planner-style daily notes and displays advanced, customizable statistics to help track your long term progress and give insights to your habits.
 
@@ -58,7 +58,7 @@ Tap **Info** inside the stats window anytime for a quick reminder of these rules
 
 ### The stats window
 
-<img width="950" height="859" alt="Screenshot 2026-05-20 at 5 51 58 PM" src="https://github.com/user-attachments/assets/2bd7d125-646e-48fd-b3f6-d967733f71fc" />
+<img width="976" height="736" alt="Screenshot 2026-05-23 at 5 12 43 PM" src="https://github.com/user-attachments/assets/0ac066a0-3df3-49ea-894e-ae2a981972d2" />
 
 #### Pick a time range
 
