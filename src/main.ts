@@ -919,23 +919,11 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       },
     });
 
-    const chartHeader = right.createDiv({
-      cls: "odpa-chart-header",
-      attr: {
-        style:
-          "display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;",
-      },
-    });
+    const chartHeader = right.createDiv({ cls: "odpa-chart-header" });
     // eslint-disable-next-line -- product title per design
     chartHeader.createEl("h3", { text: "Tasks Graph" });
 
-    const selectWrap = chartHeader.createDiv({
-      cls: "odpa-chart-select-wrap",
-      attr: {
-        style:
-          "display: flex; align-items: center; gap: 0.25rem; max-width: 60%; flex: 0 1 60%; justify-content: flex-end; overflow: hidden;",
-      },
-    });
+    const selectWrap = chartHeader.createDiv({ cls: "odpa-chart-select-wrap" });
     selectWrap.createEl("span", {
       text: "Task:",
       cls: "odpa-chart-select-label",
@@ -971,20 +959,11 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
     caretSvg.appendChild(caretPath);
     caret.appendChild(caretSvg);
 
-    const chartBox = right.createDiv({
-      cls: "odpa-chart-placeholder",
-      attr: {
-        style:
-          "margin-top: 0.5rem; height: 180px !important; max-height: 180px !important; flex: 0 0 auto; overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column;",
-      },
-    });
+    const chartArea = right.createDiv({ cls: "odpa-chart-area" });
 
-    const canvasWrap = chartBox.createDiv({
-      cls: "odpa-chart-canvas-wrap",
-      attr: {
-        style: "flex: 1; min-height: 0; position: relative;",
-      },
-    });
+    const chartBox = chartArea.createDiv({ cls: "odpa-chart-placeholder" });
+
+    const canvasWrap = chartBox.createDiv({ cls: "odpa-chart-canvas-wrap" });
 
     const canvas = canvasWrap.createEl("canvas", {
       cls: "odpa-chart-canvas",
@@ -995,12 +974,7 @@ getDisplayDataBetw(dayStart: string, dayEnd: string){
       display: "block",
     });
 
-    const legendEl = chartBox.createDiv({
-      cls: "odpa-chart-legend",
-      attr: {
-        style: "margin-top: 4px; font-size: 0.7rem; color: var(--text-muted);",
-      },
-    });
+    const legendEl = chartBox.createDiv({ cls: "odpa-chart-legend" });
     legendEl.setText(
       "Line shows total minutes spent on the selected task each day.",
     );
